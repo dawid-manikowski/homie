@@ -1,0 +1,6 @@
+export HOMIE_DB_HOST=""
+export HOMIE_DB_PORT=""
+export HOMIE_DB_USER=""
+export HOMIE_DB_PASSWORD=""
+export HOMIE_DB_NAME=""
+export HOMIE_INTERVAL="30"

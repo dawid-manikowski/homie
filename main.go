@@ -6,28 +6,20 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"time"
 
 	_ "github.com/lib/pq"
 )
 
-const (
-	ImmichURL    = "https://photos.lazydev.sh/api/server/ping"
-	BitwardenURL = "https://bitwarden.lazydev.sh/"
-	InvalidURL   = "https://eva.cuate.pl/"
-	DBHost       = "192.168.1.120"
-	DBPort       = 5432
-	DBUser       = "postgres"
-	DBPassword   = "zaq12wsx"
-	DBName       = "homie"
-)
-
 var (
-	Services = []Service{
-		{"Immich", ImmichURL},
-		{"Bitwarden", BitwardenURL},
-		{"Invalid", InvalidURL},
-	}
+	DBHost        = os.Getenv("HOMIE_DB_HOST")
+	DBPort        = os.Getenv("HOMIE_DB_PORT")
+	DBUser        = os.Getenv("HOMIE_DB_USER")
+	DBPassword    = os.Getenv("HOMIE_DB_PASSWORD")
+	DBName        = os.Getenv("HOMIE_DB_NAME")
+	CheckInterval, _ = strconv.Atoi(os.Getenv("HOMIE_INTERVAL"))
 )
 
 type Service struct {
@@ -100,16 +92,37 @@ func SaveCheckToDB(db *sql.DB, status *ServiceStatus) {
 	if err != nil {
 		log.Fatalf("Service not found: %v", status.Name)
 	}
-	db.Exec(
-		"INSERT INTO health_checks (service_id, status, response_time, status_code, error_message) VALUES ($1, $2, $3, $4, $5)", 
+	_, err = db.Exec(
+		"INSERT INTO health_checks (service_id, status, response_time, status_code, error_message) VALUES ($1, $2, $3, $4, $5)",
 		serviceID, status.Status, status.ResponseTime, status.StatusCode, status.Error,
 	)
+	if err != nil {
+		log.Fatalf("Error saving check to database: %v", err)
+	}
+}
+
+func ReadServicesFromDB(db *sql.DB) []Service {
+	services := []Service{}
+	rows, err := db.Query("SELECT name, url FROM services;")
+	if err != nil {
+		log.Fatalf("Could not fetch services from the database: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var svc Service
+		err = rows.Scan(&svc.Name, &svc.URL)
+		if err != nil {
+			log.Fatalf("Error parsing service row from database: %v", err)
+		}
+		services = append(services, svc)
+	}
+	return services
 }
 
 func main() {
 	log.Print("Homie homelab monitoring tool")
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
-		"password=%s dbname=%s sslmode=disable",
+	psqlInfo := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		DBHost, DBPort, DBUser, DBPassword, DBName)
 	db, err := sql.Open("postgres", psqlInfo)
 	if err != nil {
@@ -117,13 +130,28 @@ func main() {
 	}
 	defer db.Close()
 
-	statuses := []*ServiceStatus{}
-	for _, service := range Services {
-		statuses = append(statuses, CheckURL(service.Name, service.URL))
+	log.Println("Checking database connection")
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Database not reachable: %v", err)
 	}
+	log.Println("Database connection healthy!")
 
-	for _, check := range statuses {
-		SaveCheckToDB(db, check)
-		fmt.Printf("%s\t\t(%s)\t\tStatus:%s\t ResponseTime: %d ms\t StatusCode: %d\t CheckedAt: %v\t Error:%s\n", check.Name, check.URL, check.Status, check.ResponseTime.Milliseconds(), check.StatusCode, check.CheckedAt, check.Error)
+	ticker := time.NewTicker(time.Duration(CheckInterval) * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			services := ReadServicesFromDB(db)
+			statuses := []*ServiceStatus{}
+			for _, service := range services {
+				statuses = append(statuses, CheckURL(service.Name, service.URL))
+			}
+
+			for _, check := range statuses {
+				SaveCheckToDB(db, check)
+				fmt.Printf("%s\t\t(%s)\t\tStatus:%s\t ResponseTime: %d ms\t StatusCode: %d\t CheckedAt: %v\t Error:%s\n", check.Name, check.URL, check.Status, check.ResponseTime.Milliseconds(), check.StatusCode, check.CheckedAt, check.Error)
+			}
+		}
 	}
 }
