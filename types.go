@@ -19,3 +19,6 @@ type ServiceStatus struct {
 	Error        string
 }
 
+type DashboardData struct {
+	Services []ServiceStatus
+}
