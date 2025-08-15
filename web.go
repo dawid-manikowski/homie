@@ -78,10 +78,10 @@ const htmlTemplate = `
 	</style>
 	<table>
 	<tr>
-		<td>Service</td>
-		<td>Status</td>
-		<td>Last Checked</td>
-		<td>Response Time</td>
+		<th>Service</th>
+		<th>Status</th>
+		<th>Last Checked</th>
+		<th>Response Time</th>
 	</tr>
 	{{ range .Services}}
 	<tr>
