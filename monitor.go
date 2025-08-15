@@ -112,3 +112,32 @@ func ReadServicesFromDB(db *sql.DB) []Service {
 	}
 	return services
 }
+
+func GetCurrentServicesStatuses(db *sql.DB) []ServiceStatus {
+	var statuses = []ServiceStatus{}
+	query := `
+		SELECT s.name, hc.status, hc.response_time, hc.error_message, hc.checked_at
+		FROM services s
+		JOIN health_checks hc ON s.id = hc.service_id
+		WHERE hc.checked_at = (
+				SELECT MAX(checked_at) 
+				FROM health_checks hc2 
+				WHERE hc2.service_id = hc.service_id
+		);
+	`
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Fatalf("Error fetching current services statuses: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var svcStatus ServiceStatus
+		err = rows.Scan(&svcStatus.Name, &svcStatus.Status, &svcStatus.ResponseTime, &svcStatus.Error, &svcStatus.CheckedAt)	
+		if err != nil {
+			log.Printf("Could not unpack row: %v", err)
+			continue
+		} 
+		statuses = append(statuses, svcStatus)
+	}
+	return statuses
+}
