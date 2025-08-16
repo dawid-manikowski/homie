@@ -16,17 +16,17 @@ func StartMonitor(db *sql.DB) {
 
 	for {
 		select {
-			case <- ticker.C:
-				services := ReadServicesFromDB(db)
-				statuses := []*ServiceStatus{}
-				for _, service := range services {
-					statuses = append(statuses, CheckURL(service.Name, service.URL))
-				}
+		case <-ticker.C:
+			services := ReadServicesFromDB(db)
+			statuses := []*ServiceStatus{}
+			for _, service := range services {
+				statuses = append(statuses, CheckURL(service.Name, service.URL))
+			}
 
-				for _, check := range statuses {
-					SaveCheckToDB(db, check)
-					fmt.Printf("%s\t\t(%s)\t\tStatus:%s\t ResponseTime: %d ms\t StatusCode: %d\t CheckedAt: %v\t Error:%s\n", check.Name, check.URL, check.Status, check.ResponseTime.Milliseconds(), check.StatusCode, check.CheckedAt, check.Error)
-				}
+			for _, check := range statuses {
+				SaveCheckToDB(db, check)
+				fmt.Printf("%s\t\t(%s)\t\tStatus:%s\t ResponseTime: %d ms\t StatusCode: %d\t CheckedAt: %v\t Error:%s\n", check.Name, check.URL, check.Status, check.ResponseTime.Milliseconds(), check.StatusCode, check.CheckedAt, check.Error)
+			}
 		}
 	}
 }
@@ -95,6 +95,16 @@ func SaveCheckToDB(db *sql.DB, status *ServiceStatus) {
 	}
 }
 
+func SaveServiceToDB(db *sql.DB, svc *Service) error {
+	_, err := db.Exec("INSERT INTO services (name, url) VALUES ($1, $2)", svc.Name, svc.URL)
+	if err != nil {
+		log.Printf("Error saving service to DB: %v", err)
+		return err
+	}
+
+	return nil
+}
+
 func ReadServicesFromDB(db *sql.DB) []Service {
 	services := []Service{}
 	rows, err := db.Query("SELECT name, url FROM services;")
@@ -132,11 +142,11 @@ func GetCurrentServicesStatuses(db *sql.DB) []ServiceStatus {
 	defer rows.Close()
 	for rows.Next() {
 		var svcStatus ServiceStatus
-		err = rows.Scan(&svcStatus.Name, &svcStatus.Status, &svcStatus.ResponseTime, &svcStatus.Error, &svcStatus.CheckedAt)	
+		err = rows.Scan(&svcStatus.Name, &svcStatus.Status, &svcStatus.ResponseTime, &svcStatus.Error, &svcStatus.CheckedAt)
 		if err != nil {
 			log.Printf("Could not unpack row: %v", err)
 			continue
-		} 
+		}
 		statuses = append(statuses, svcStatus)
 	}
 	return statuses

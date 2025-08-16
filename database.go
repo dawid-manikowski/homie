@@ -25,4 +25,3 @@ func SetUpDatabaseConnection(DBHost string, DBPort string, DBUser string, DBPass
 
 	return db
 }
-

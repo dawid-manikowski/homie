@@ -33,6 +33,7 @@ const htmlTemplate = `
 			border-radius: 8px;
 			overflow: hidden;
 			box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+			margin-bottom: 100px;
 		}
 
 		th {
@@ -76,28 +77,42 @@ const htmlTemplate = `
 			color: #ffffff;
 		}
 	</style>
-	<table>
-	<tr>
-		<th>Service</th>
-		<th>Status</th>
-		<th>Last Checked</th>
-		<th>Response Time</th>
-	</tr>
-	{{ range .Services}}
-	<tr>
-		<td>{{.Name}}</td>
-		<td><span class="status-badge {{.Status}}">{{.Status}}</span></td>
-		<td>{{.CheckedAt}}</td>
-		<td>{{.ResponseTime}}</td>
-	</tr>
-	{{end}}
-	</table>
+	<div>
+		<table>
+		<tr>
+			<th>Service</th>
+			<th>Status</th>
+			<th>Last Checked</th>
+			<th>Response Time</th>
+		</tr>
+		{{ range .Services}}
+		<tr>
+			<td>{{.Name}}</td>
+			<td><span class="status-badge {{.Status}}">{{.Status}}</span></td>
+			<td>{{.CheckedAt}}</td>
+			<td>{{.ResponseTime}}</td>
+		</tr>
+		{{end}}
+		</table>
+	</div>
+	<div>
+		<form action="/services" method="POST">
+			<label for="service-name">Service Name</label>
+			<input name="service-name" id="service-name" value="Sample" />
+
+			<label for="service-address">Service Address</label>
+			<input name="service-address" id="service-address" value="https://sample.com" />
+
+			<button>Add</button>
+		</form>
+	</div>
 </html>
 `
 
 func StartWebServer(db *sql.DB) {
 	tmpl = template.Must(template.New("dashboard").Parse(htmlTemplate))
 	http.HandleFunc("/", MainPage(db))
+	http.HandleFunc("/services", Services(db))
 	log.Println("Web server starting")
 	err := http.ListenAndServe(":8080", nil)
 	if err != nil {
@@ -106,9 +121,9 @@ func StartWebServer(db *sql.DB) {
 }
 
 func MainPage(db *sql.DB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request){
+	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		services := GetCurrentServicesStatuses(db)	
+		services := GetCurrentServicesStatuses(db)
 		data := DashboardData{services}
 		err := tmpl.Execute(w, data)
 		if err != nil {
@@ -117,3 +132,20 @@ func MainPage(db *sql.DB) http.HandlerFunc {
 	}
 }
 
+func Services(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			log.Print("Listing services")
+		case http.MethodPost:
+			log.Print("Adding service")
+			svc := Service{r.FormValue("service-name"), r.FormValue("service-address")}
+			log.Printf("%v", svc)
+			err := SaveServiceToDB(db, &svc)
+			if err != nil {
+				log.Printf("Failed to add service: %v", err)
+			}
+		}
+	}
+}
