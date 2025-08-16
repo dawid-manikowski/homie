@@ -26,6 +26,11 @@ const htmlTemplate = `
 			color: #e0e0e0;
 		}
 
+		.add-service {
+			margin: auto;
+			width: 20%;
+		}
+
 		table {
 			width: 100%;
 			border-collapse: collapse;
@@ -95,13 +100,13 @@ const htmlTemplate = `
 		{{end}}
 		</table>
 	</div>
-	<div>
+	<div class="add-service">
 		<form action="/services" method="POST">
-			<label for="service-name">Service Name</label>
-			<input name="service-name" id="service-name" value="Sample" />
+			<label for="service-name">Service Name</label><br />
+			<input name="service-name" id="service-name" value="Sample" /><br /><br />
 
-			<label for="service-address">Service Address</label>
-			<input name="service-address" id="service-address" value="https://sample.com" />
+			<label for="service-address">Service Address</label><br />
+			<input name="service-address" id="service-address" value="https://sample.com" /><br /><br />
 
 			<button>Add</button>
 		</form>
